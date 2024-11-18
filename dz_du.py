@@ -115,17 +115,41 @@ def back_to_commands(message):
     bot.send_message(user_id, "Выберите команду:", reply_markup=markup)
 
 
+def is_valid_fio(fio):
+    return bool(re.match(r'^[А-ЯЁ][а-яё]+ [А-ЯЁ][а-яё]+$', fio.strip()))
+
+
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'enter_fio')
 def get_fio(message):
     user_id = message.chat.id
-    if message.text == "Вернуться к выбору роли":
-        start(message)
+    fio = message.text.strip()
+
+    if not is_valid_fio(fio):
+        bot.send_message(user_id, "Неверный формат ввода данных.\nВведите в формате <i>Иванов Иван</i>:", parse_mode='html')
         return
 
-    user_data[user_id]['fio'] = message.text
-    user_states[user_id] = 'enter_group'  # Состояние: ввод группы
-    bot.send_message(user_id, "Введите вашу группу в формате <i>МЕН-123456</i>:", parse_mode='html', reply_markup=types.ReplyKeyboardRemove())
+    user_data[user_id]['fio'] = fio
 
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    markup.add("Да", "Внести изменения")
+    bot.send_message(user_id, f"Добавить данные для ученика <b>{fio}</b>?", parse_mode='html', reply_markup=markup)
+    user_states[user_id] = 'confirm_fio'
+
+
+@bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'confirm_fio')
+def confirm_fio(message):
+    user_id = message.chat.id
+
+    if message.text == "Да":
+        user_states[user_id] = 'enter_group'  # Переход к вводу группы
+        bot.send_message(user_id, "Введите вашу группу в формате <i>МЕН-123456</i>:", parse_mode='html')
+
+    elif message.text == "Внести изменения":
+        user_states[user_id] = 'enter_fio'  # Возврат к вводу ФИО
+        bot.send_message(user_id, "Введите ваши фамилию и имя в формате <i>Иванов Иван</i>:", parse_mode='html')
+
+    else:
+        bot.send_message(user_id, "Ошибка. Выберите один из возможных ниже вариантов.")
 
 def is_valid_group(group):
     return bool(re.match(r'^МЕН-\d{6}$', group))
@@ -134,15 +158,34 @@ def is_valid_group(group):
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'enter_group')
 def get_group(message):
     user_id = message.chat.id
-    group = message.text
+    group = message.text.strip()
 
     if not is_valid_group(group):
-        bot.send_message(user_id, "Неверный формат группы.\nВведите в формате <i>МЕН-123456</i>", parse_mode='html')
+        bot.send_message(user_id, "Неверный формат ввода данных.\nВведите в формате <i>МЕН-123456</i>.", parse_mode='html')
         return
 
     user_data[user_id]['group'] = group
-    user_states[user_id] = 'enter_date'  # Состояние: ввод даты
-    bot.send_message(user_id, "Введите дату в формате  <i>ДД.ММ.ГГГГ</i> и не позже текущей:", parse_mode='html')
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    markup.add("Да", "Внести изменения")
+    bot.send_message(user_id, f"Устанавливаю для вас группу <b>{group}</b>?", parse_mode='html', reply_markup=markup)
+    user_states[user_id] = 'confirm_group'
+
+
+@bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'confirm_group')
+def confirm_group(message):
+    user_id = message.chat.id
+
+    if message.text == "Да":
+        user_states[user_id] = 'enter_date'  # Переход к вводу даты
+        bot.send_message(user_id, "Введите дату в формате <i>ДД.ММ.ГГГГ</i> и не позже текущей:", parse_mode='html')
+
+    elif message.text == "Внести изменения":
+        user_states[user_id] = 'enter_group'  # Возврат к вводу группы
+        bot.send_message(user_id, "Введите вашу группу в формате <i>МЕН-123456</i>:", parse_mode='html')
+
+    else:
+        bot.send_message(user_id, "Ошибка. Выберите один из возможных ниже вариантов.")
 
 
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'enter_date')
@@ -154,7 +197,7 @@ def get_date(message):
             bot.send_message(user_id, "Дата не может быть позже текущей. Попробуйте снова.")
             return
     except ValueError:
-        bot.send_message(user_id, "Неверный формат даты.\nВведите в формате <i>ДД.ММ.ГГГГ</i>.", parse_mode='html')
+        bot.send_message(user_id, "Неверный формат ввода данных.\nВведите в формате <i>ДД.ММ.ГГГГ</i>.", parse_mode='html')
         return
 
     user_data[user_id]['date'] = message.text
