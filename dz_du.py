@@ -124,6 +124,10 @@ def get_fio(message):
     user_id = message.chat.id
     fio = message.text.strip()
 
+    if message.text == "Вернуться к выбору роли":
+        start(message)
+        return
+
     if not is_valid_fio(fio):
         bot.send_message(user_id, "Неверный формат ввода данных.\nВведите в формате <i>Иванов Иван</i>:", parse_mode='html')
         return
