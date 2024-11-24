@@ -1,16 +1,13 @@
 import os
 import re
 from telebot import TeleBot, types
-from datetime import datetime
 from bot.states import user_states, user_data, authorized_teachers
 from bot.config import TELEGRAM_BOT_TOKEN, TEACHER_PASSWORD, FILES_DIR
 from bot.validators import is_valid_fio, is_valid_group, is_valid_date, is_valid_task
-from bot.file_manager import ensure_files_dir_exists, read_existing_tasks, append_new_tasks
+from bot.file_manager import read_existing_tasks, append_new_tasks
 
 bot = TeleBot(TELEGRAM_BOT_TOKEN)
 
-# Убедимся, что директория для файлов существует
-ensure_files_dir_exists(FILES_DIR)
 
 # Обработчик команды /start
 @bot.message_handler(commands=['start'])
@@ -20,6 +17,7 @@ def start(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     markup.add("Преподаватель", "Ученик")
     bot.send_message(user_id, "Выберите вашу роль:", reply_markup=markup)
+
 
 # Выбор роли
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'choose_role')
@@ -35,6 +33,7 @@ def choose_role(message):
     else:
         bot.send_message(user_id, "Пожалуйста, выберите одну из ролей.")
 
+
 # Проверка пароля преподавателя
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'enter_password')
 def check_teacher_password(message):
@@ -48,6 +47,7 @@ def check_teacher_password(message):
     else:
         bot.send_message(user_id, "Неверный пароль. Попробуйте снова.")
 
+
 # Проверка ФИО ученика
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'enter_fio')
 def get_fio(message):
@@ -59,6 +59,7 @@ def get_fio(message):
         bot.send_message(user_id, "Введите вашу группу в формате МЕН-123456:")
     else:
         bot.send_message(user_id, "Неверный формат. Введите ФИО в формате Иванов Иван.")
+
 
 # Проверка группы ученика
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'enter_group')
@@ -72,6 +73,7 @@ def get_group(message):
     else:
         bot.send_message(user_id, "Неверный формат группы. Попробуйте снова.")
 
+
 # Проверка даты
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'enter_date')
 def get_date(message):
@@ -83,6 +85,7 @@ def get_date(message):
         bot.send_message(user_id, "Введите номера сданных задач, разделяя их пробелами или запятыми:")
     else:
         bot.send_message(user_id, "Неверный формат даты. Введите дату в формате ДД.ММ.ГГГГ и не позже текущей.")
+
 
 # Проверка и сохранение задач
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'enter_tasks')
@@ -119,6 +122,7 @@ def get_tasks(message):
     bot.send_message(user_id, "Выберите дальнейшее действие:", reply_markup=markup)
     user_states[user_id] = 'student_action'
 
+
 # Действия после сдачи задач
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'student_action')
 def student_action(message):
@@ -131,6 +135,7 @@ def student_action(message):
         bot.send_message(user_id, "Спасибо за использование бота!")
     else:
         bot.send_message(user_id, "Пожалуйста, выберите один из вариантов.")
+
 
 # Загрузка данных (для преподавателей)
 @bot.message_handler(func=lambda message: message.text == "Загрузить данные" and message.chat.id in authorized_teachers)
@@ -145,6 +150,7 @@ def download_data(message):
         file_path = os.path.join(FILES_DIR, filename)
         with open(file_path, "rb") as file:
             bot.send_document(user_id, file)
+
 
 # Просмотр статистики (для преподавателей)
 @bot.message_handler(func=lambda message: message.text == "Посмотреть статистику" and message.chat.id in authorized_teachers)
