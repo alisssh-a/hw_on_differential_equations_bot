@@ -1,6 +1,5 @@
 import os
 
-
 # Использование переменной окружения для загрузки токена
 TELEGRAM_BOT_TOKEN = os.getenv("hw_on_differential_equations_bot_token")
 
