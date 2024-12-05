@@ -25,12 +25,12 @@ def start(message):
         full_name = AUTHORIZED_TEACHERS_USERNAMES[username]
         user_states[user_id] = None
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
-        markup.add("Загрузить данные", "Посмотреть статистику", "Добавить задачи для учеников")
+        markup.add("Добавить задачи для учеников", "Посмотреть статистику", "Загрузить данные")
         bot.send_message(user_id, f"Добро пожаловать,{full_name}!\nВыберите действие:", reply_markup=markup)
     else:
         user_states[user_id] = 'enter_fio'
         user_data[user_id] = {}
-        bot.send_message(user_id, "Добро пожаловать, ученик!\nВведите ваши ФИО в формате Иванов Иван:")
+        bot.send_message(user_id, "Добро пожаловать, ученик!\nВведите ваши ФИ в формате <i>Иванов Иван</i>:", parse_mode='html')
 
 
 # Обработка к возвращению выбора команд для преподавателя
@@ -38,7 +38,7 @@ def start(message):
 def back_to_commands(message):
     user_id = message.chat.id
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
-    markup.add("Загрузить данные", "Посмотреть статистику", "Завершить работу", "Добавить задачи для учеников")
+    markup.add("Добавить задачи для учеников", "Посмотреть статистику", "Загрузить данные", "Завершить работу")
     bot.send_message(user_id, "Выберите команду:", reply_markup=markup)
 
 
@@ -90,8 +90,8 @@ def teacher_save_tasks(message):
 
     # Завершение работы или возврат к выбору команд
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
-    markup.add("Завершить работу", "Вернуться к выбору команд")
-    bot.send_message(user_id, "Вы можете:", reply_markup=markup)
+    markup.add("Вернуться к выбору команд", "Завершить работу")
+    bot.send_message(user_id, "Выберите дальнейшее действие:", reply_markup=markup)
     user_states[user_id] = 'teacher_action'
 
 
@@ -105,7 +105,7 @@ def download(message):
         bot.send_message(user_id, "Нет доступных данных для загрузки.")
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
         markup.add("Вернуться к выбору команд", "Завершить работу")
-        bot.send_message(user_id, "Вы можете:", reply_markup=markup)
+        bot.send_message(user_id, "Выберите дальнейшее действие:", reply_markup=markup)
         user_states[user_id] = None
 
     else:
@@ -129,7 +129,7 @@ def view_statistics(message):
     bot.send_message(user_id, "Функция просмотра статистики пока не реализована.")
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
     markup.add("Вернуться к выбору команд", "Завершить работу")
-    bot.send_message(user_id, "Вы можете:", reply_markup=markup)
+    bot.send_message(user_id, "Выберите дальнейшее действие:", reply_markup=markup)
 
 
 # Ученик вводит ФИ
@@ -137,12 +137,27 @@ def view_statistics(message):
 def student_set_fio(message):
     user_id = message.chat.id
     fio = message.text.strip()
-    if is_valid_fio(fio):
-        user_data[user_id]['fio'] = fio
+    if not is_valid_fio(fio):
+        bot.send_message(user_id, "Неверный формат ввода данных.\nВведите в формате <i>Иванов Иван</i>:", parse_mode='html')
+
+    user_data[user_id]['fio'] = fio
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    markup.add("Да", "Внести изменения")
+    bot.send_message(user_id, f"Добавить данные для ученика <b>{fio}</b>?", parse_mode='html', reply_markup=markup)
+    user_states[user_id] = 'confirm_fio'
+
+
+@bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'confirm_fio')
+def student_confirm_fio(message):
+    user_id = message.chat.id
+    if message.text == "Да":
         user_states[user_id] = 'enter_group'
-        bot.send_message(user_id, "Введите вашу группу в формате МЕН-123456:")
+        bot.send_message(user_id, "Введите вашу группу в формате <i>МЕН-123456</i>:", parse_mode='html')
+    elif message.text == "Внести изменения":
+        user_states[user_id] = 'enter_fio'
+        bot.send_message(user_id, "Введите ваши фамилию и имя в формате <i>Иванов Иван</i>:", parse_mode='html')
     else:
-        bot.send_message(user_id, "Неверный формат. Введите ФИО в формате Иванов Иван.")
+        bot.send_message(user_id, "Ошибка. Выберите один из возможных ниже вариантов.")
 
 
 # Ученик вводит группу
@@ -151,30 +166,28 @@ def student_set_group(message):
     user_id = message.chat.id
     group = message.text.strip()
 
-    latest_file = max(
-        [os.path.join(TASKS_FILES_DIR, f) for f in os.listdir(TASKS_FILES_DIR) if f.startswith("tasks_")],
-        key=os.path.getctime,
-        default=None
-    )
+    if not is_valid_group(group):
+        bot.send_message(user_id, "Неверный формат ввода данных.\nВведите в формате <i>МЕН-123456</i>.", parse_mode='html')
+        return
 
-    if latest_file:
-        with open(latest_file, "r", encoding="utf-8") as file:
-            tasks = [task.strip() for task in file.readlines() if task.strip()]
-        if tasks:
-            tasks_message = "Актуальные задачи:\n" + "\n".join(tasks)
-        else:
-            tasks_message = "Актуальных задач пока нет."
-    else:
-        tasks_message = "Актуальных задач пока нет."
+    user_data[user_id]['group'] = group
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    markup.add("Да", "Внести изменения")
+    bot.send_message(user_id, f"Устанавливаю для вас группу <b>{group}</b>?", parse_mode='html', reply_markup=markup)
+    user_states[user_id] = 'confirm_group'
 
-    bot.send_message(user_id, tasks_message)
 
-    if is_valid_group(group):
-        user_data[user_id]['group'] = group
+@bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'confirm_group')
+def student_confirm_group(message):
+    user_id = message.chat.id
+    if message.text == "Да":
         user_states[user_id] = 'enter_date'
-        bot.send_message(user_id, "Введите дату в формате ДД.ММ.ГГГГ:")
+        bot.send_message(user_id, "Введите дату в формате <i>ДД.ММ.ГГГГ</i> и не позже текущей:", parse_mode='html')
+    elif message.text == "Внести изменения":
+        user_states[user_id] = 'enter_group'
+        bot.send_message(user_id, "Введите вашу группу в формате <i>МЕН-123456</i>:", parse_mode='html')
     else:
-        bot.send_message(user_id, "Неверный формат группы. Попробуйте снова.")
+        bot.send_message(user_id, "Ошибка. Выберите один из возможных ниже вариантов.")
 
 
 # Ученик вводит дату сдачи задач
@@ -182,12 +195,31 @@ def student_set_group(message):
 def student_set_date(message):
     user_id = message.chat.id
     date_str = message.text.strip()
+
     if is_valid_date(date_str):
+        latest_file = max(
+            [os.path.join(TASKS_FILES_DIR, f) for f in os.listdir(TASKS_FILES_DIR) if f.startswith("tasks_")],
+            key=os.path.getctime,
+            default=None
+        )
+
+        if latest_file:
+            with open(latest_file, "r", encoding="utf-8") as file:
+                tasks = [task.strip() for task in file.readlines() if task.strip()]
+            if tasks:
+                tasks_message = "Актуальные задачи:\n" + "\n".join(tasks)
+            else:
+                tasks_message = "Актуальных задач пока нет."
+        else:
+            tasks_message = "Актуальных задач пока нет."
+
+        bot.send_message(user_id, tasks_message)
+
         user_data[user_id]['date'] = date_str
         user_states[user_id] = 'enter_tasks'
         bot.send_message(user_id, "Введите номера сданных задач, разделяя их пробелами или запятыми:")
     else:
-        bot.send_message(user_id, "Неверный формат даты. Введите дату в формате ДД.ММ.ГГГГ и не позже текущей.")
+        bot.send_message(user_id, "Неверный формат ввода данных. Введите дату в формате <i>ДД.ММ.ГГГГ</i> и не позже текущей:", parse_mode='html')
 
 
 # Ученик вводит задачи
@@ -220,7 +252,7 @@ def student_set_tasks(message):
     else:
         bot.send_message(user_id, "Все введённые задачи уже были сданы ранее.")
 
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
     markup.add("Сдать ещё задачи", "Завершить работу")
     bot.send_message(user_id, "Выберите дальнейшее действие:", reply_markup=markup)
     user_states[user_id] = 'student_action'
@@ -232,7 +264,7 @@ def student_action(message):
     user_id = message.chat.id
     if message.text == "Сдать ещё задачи":
         user_states[user_id] = 'enter_date'
-        bot.send_message(user_id, "Введите дату в формате ДД.ММ.ГГГГ:")
+        bot.send_message(user_id, "Введите дату в формате <i>ДД.ММ.ГГГГ</i>.", parse_mode='html')
     elif message.text == "Завершить работу":
         user_states[user_id] = None
         finish_work(message)
