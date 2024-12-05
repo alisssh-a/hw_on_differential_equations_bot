@@ -2,10 +2,15 @@ import os
 import re
 from telebot import TeleBot, types
 from bot.states import user_states, user_data
-from bot.config import TELEGRAM_BOT_TOKEN, FILES_DIR
+from bot.config import STUDENTS_FILES_DIR, TASKS_FILES_DIR
 from bot.teachers_usernames import AUTHORIZED_TEACHERS_USERNAMES
 from bot.validators import is_valid_fio, is_valid_group, is_valid_date, is_valid_task
 from bot.file_manager import read_existing_tasks, append_new_tasks
+
+# Использование переменной окружения для загрузки токена
+TELEGRAM_BOT_TOKEN = os.getenv("hw_on_differential_equations_bot_token")
+if TELEGRAM_BOT_TOKEN is None:
+    raise RuntimeError("Переменная окружения hw_on_differential_equations_bot_token не установлена!")
 
 bot = TeleBot(TELEGRAM_BOT_TOKEN)
 
@@ -20,7 +25,7 @@ def start(message):
         full_name = AUTHORIZED_TEACHERS_USERNAMES[username]
         user_states[user_id] = None
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
-        markup.add("Загрузить данные", "Посмотреть статистику")
+        markup.add("Загрузить данные", "Посмотреть статистику", "Добавить задачи для учеников")
         bot.send_message(user_id, f"Добро пожаловать,{full_name}!\nВыберите действие:", reply_markup=markup)
     else:
         user_states[user_id] = 'enter_fio'
@@ -28,9 +33,108 @@ def start(message):
         bot.send_message(user_id, "Добро пожаловать, ученик!\nВведите ваши ФИО в формате Иванов Иван:")
 
 
-# Проверка ФИО ученика
+# Обработка к возвращению выбора команд для преподавателя
+@bot.message_handler(func=lambda message: message.text == "Вернуться к выбору команд")
+def back_to_commands(message):
+    user_id = message.chat.id
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
+    markup.add("Загрузить данные", "Посмотреть статистику", "Завершить работу", "Добавить задачи для учеников")
+    bot.send_message(user_id, "Выберите команду:", reply_markup=markup)
+
+
+# Преподаватель устанавливает даты
+@bot.message_handler(func=lambda message: message.text == "Добавить задачи для учеников")
+def teacher_request_task_date(message):
+    user_id = message.chat.id
+    bot.send_message(user_id, "Введите дату для задания задач в формате ДД.ММ.ГГГГ:")
+    user_states[user_id] = 'teacher_task_date'
+
+
+# Преподаватель подтверждает даты
+@bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'teacher_task_date')
+def teacher_create_task_file(message):
+    user_id = message.chat.id
+    date_str = message.text.strip()
+
+    if is_valid_date(date_str):
+        file_path = os.path.join(TASKS_FILES_DIR, f"tasks_{date_str}.txt")
+
+        if not os.path.exists(file_path):
+            open(file_path, "w", encoding="utf-8").close()
+            bot.send_message(user_id, f"Файл для задач на дату {date_str} создан.")
+        else:
+            bot.send_message(user_id, f"Файл для задач на дату {date_str} уже существует.")
+
+        user_data[user_id] = {'task_file': file_path}
+        user_states[user_id] = 'teacher_tasks'
+        bot.send_message(user_id, "Введите задачи, разделяя их запятыми:")
+    else:
+        bot.send_message(user_id, "Неверный формат даты. Введите дату в формате ДД.ММ.ГГГГ.")
+
+
+# Преподаватель задаёт список актуальных задач
+@bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'teacher_tasks')
+def teacher_save_tasks(message):
+    user_id = message.chat.id
+    tasks = [task.strip() for task in message.text.split(",") if task.strip()]
+
+    if not tasks:
+        bot.send_message(user_id, "Вы не ввели ни одной задачи. Попробуйте снова.")
+        return
+
+    file_path = user_data[user_id]['task_file']
+    with open(file_path, "a", encoding="utf-8") as file:
+        file.write("\n".join(tasks) + "\n")  # Записываем задачи в файл
+
+    bot.send_message(user_id, f"Задачи успешно добавлены: {', '.join(tasks)}.")
+
+    # Завершение работы или возврат к выбору команд
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
+    markup.add("Завершить работу", "Вернуться к выбору команд")
+    bot.send_message(user_id, "Вы можете:", reply_markup=markup)
+    user_states[user_id] = 'teacher_action'
+
+
+# Преподаватель загружает данные
+@bot.message_handler(func=lambda message: message.text == "Загрузить данные")
+def download(message):
+    user_id = message.chat.id
+    files = os.listdir(STUDENTS_FILES_DIR)
+
+    if not files:
+        bot.send_message(user_id, "Нет доступных данных для загрузки.")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
+        markup.add("Вернуться к выбору команд", "Завершить работу")
+        bot.send_message(user_id, "Вы можете:", reply_markup=markup)
+        user_states[user_id] = None
+
+    else:
+        bot.send_message(user_id, "Отправка данных...")
+
+        for filename in files:
+            file_path = os.path.join(STUDENTS_FILES_DIR, filename)
+            with open(file_path, "rb") as file:
+                bot.send_document(user_id, file)
+
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
+        markup.add("Вернуться к выбору команд", "Завершить работу")
+        bot.send_message(user_id, "Выберите команду:", reply_markup=markup)
+        user_states[user_id] = None
+
+
+# Преподаватель просматривает статистику
+@bot.message_handler(func=lambda message: message.text == "Посмотреть статистику")
+def view_statistics(message):
+    user_id = message.chat.id
+    bot.send_message(user_id, "Функция просмотра статистики пока не реализована.")
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
+    markup.add("Вернуться к выбору команд", "Завершить работу")
+    bot.send_message(user_id, "Вы можете:", reply_markup=markup)
+
+
+# Ученик вводит ФИ
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'enter_fio')
-def get_fio(message):
+def student_set_fio(message):
     user_id = message.chat.id
     fio = message.text.strip()
     if is_valid_fio(fio):
@@ -41,11 +145,30 @@ def get_fio(message):
         bot.send_message(user_id, "Неверный формат. Введите ФИО в формате Иванов Иван.")
 
 
-# Проверка группы ученика
+# Ученик вводит группу
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'enter_group')
-def get_group(message):
+def student_set_group(message):
     user_id = message.chat.id
     group = message.text.strip()
+
+    latest_file = max(
+        [os.path.join(TASKS_FILES_DIR, f) for f in os.listdir(TASKS_FILES_DIR) if f.startswith("tasks_")],
+        key=os.path.getctime,
+        default=None
+    )
+
+    if latest_file:
+        with open(latest_file, "r", encoding="utf-8") as file:
+            tasks = [task.strip() for task in file.readlines() if task.strip()]
+        if tasks:
+            tasks_message = "Актуальные задачи:\n" + "\n".join(tasks)
+        else:
+            tasks_message = "Актуальных задач пока нет."
+    else:
+        tasks_message = "Актуальных задач пока нет."
+
+    bot.send_message(user_id, tasks_message)
+
     if is_valid_group(group):
         user_data[user_id]['group'] = group
         user_states[user_id] = 'enter_date'
@@ -54,9 +177,9 @@ def get_group(message):
         bot.send_message(user_id, "Неверный формат группы. Попробуйте снова.")
 
 
-# Проверка даты
+# Ученик вводит дату сдачи задач
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'enter_date')
-def get_date(message):
+def student_set_date(message):
     user_id = message.chat.id
     date_str = message.text.strip()
     if is_valid_date(date_str):
@@ -67,9 +190,9 @@ def get_date(message):
         bot.send_message(user_id, "Неверный формат даты. Введите дату в формате ДД.ММ.ГГГГ и не позже текущей.")
 
 
-# Проверка и сохранение задач
+# Ученик вводит задачи
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'enter_tasks')
-def get_tasks(message):
+def student_set_tasks(message):
     user_id = message.chat.id
     tasks = re.split(r'[ ,]+', message.text.strip())
     tasks = [task for task in tasks if task]
@@ -82,7 +205,7 @@ def get_tasks(message):
     fio = user_data[user_id]['fio']
     group = user_data[user_id]['group']
     date = user_data[user_id]['date']
-    file_path = os.path.join(FILES_DIR, f"{fio}.txt")
+    file_path = os.path.join(STUDENTS_FILES_DIR, f"{fio}.txt")
 
     existing_tasks = read_existing_tasks(file_path)
     new_tasks = [task for task in tasks if task not in existing_tasks]
@@ -103,7 +226,7 @@ def get_tasks(message):
     user_states[user_id] = 'student_action'
 
 
-# Действия после сдачи задач
+# Ученик выбирает действие после сдачи задач
 @bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'student_action')
 def student_action(message):
     user_id = message.chat.id
@@ -117,51 +240,7 @@ def student_action(message):
         bot.send_message(user_id, "Пожалуйста, выберите один из вариантов.")
 
 
-@bot.message_handler(func=lambda message: message.text == "Вернуться к выбору команд")
-def back_to_commands(message):
-    user_id = message.chat.id
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
-    markup.add("Загрузить данные", "Посмотреть статистику", "Завершить работу")
-    bot.send_message(user_id, "Выберите команду:", reply_markup=markup)
-
-
-# Загрузка данных (для преподавателей)
-@bot.message_handler(func=lambda message: message.text == "Загрузить данные")
-def download(message):
-    user_id = message.chat.id
-    files = os.listdir(FILES_DIR)
-
-    if not files:
-        bot.send_message(user_id, "Нет доступных данных для загрузки.")
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
-        markup.add("Вернуться к выбору команд", "Завершить работу")
-        bot.send_message(user_id, "Вы можете:", reply_markup=markup)
-        user_states[user_id] = None
-
-    else:
-        bot.send_message(user_id, "Отправка данных...")
-
-        for filename in files:
-            file_path = os.path.join(FILES_DIR, filename)
-            with open(file_path, "rb") as file:
-                bot.send_document(user_id, file)
-
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
-        markup.add("Вернуться к выбору команд", "Завершить работу")
-        bot.send_message(user_id, "Выберите команду:", reply_markup=markup)
-        user_states[user_id] = None
-
-
-# Просмотр статистики (для преподавателей)
-@bot.message_handler(func=lambda message: message.text == "Посмотреть статистику")
-def view_statistics(message):
-    user_id = message.chat.id
-    bot.send_message(user_id, "Функция просмотра статистики пока не реализована.")
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
-    markup.add("Вернуться к выбору команд", "Завершить работу")
-    bot.send_message(user_id, "Вы можете:", reply_markup=markup)
-
-
+# Завершение работы
 @bot.message_handler(func=lambda message: message.text == "Завершить работу")
 def finish_work(message):
     user_id = message.chat.id

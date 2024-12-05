@@ -3,6 +3,7 @@ import os
 
 TU_FILE_PATH = os.path.join(os.path.dirname(__file__), "teachers_usernames_data.txt")
 
+
 # Загружаем данные преподавателей из файла
 def load_teachers_usernames(file_path):
     authorized_teachers = {}
