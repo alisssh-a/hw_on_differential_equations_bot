@@ -1,4 +1,4 @@
-FILES_DIR=C:\Users\Инстаблогерша\OneDrive\Desktop\bot py\hw_on_differential_equations_bot\students
+# FILES_DIR=C:\Users\Инстаблогерша\OneDrive\Desktop\bot py\hw_on_differential_equations_bot\students
 
-# FILES_DIR=C:\Users\Алина\Desktop\pyton\tg bot\students
+FILES_DIR=C:\Users\Алина\Desktop\pyton\tg bot\students
 

@@ -1,8 +1,9 @@
 import os
 import re
 from telebot import TeleBot, types
-from bot.states import user_states, user_data, authorized_teachers
-from bot.config import TELEGRAM_BOT_TOKEN, TEACHER_PASSWORD, FILES_DIR
+from bot.states import user_states, user_data
+from bot.config import TELEGRAM_BOT_TOKEN, FILES_DIR
+from bot.teachers_usernames import AUTHORIZED_TEACHERS_USERNAMES
 from bot.validators import is_valid_fio, is_valid_group, is_valid_date, is_valid_task
 from bot.file_manager import read_existing_tasks, append_new_tasks
 
@@ -13,39 +14,18 @@ bot = TeleBot(TELEGRAM_BOT_TOKEN)
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.chat.id
-    user_states[user_id] = 'choose_role'
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    markup.add("Преподаватель", "Ученик")
-    bot.send_message(user_id, "Выберите вашу роль:", reply_markup=markup)
+    username = message.from_user.username
 
-
-# Выбор роли
-@bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'choose_role')
-def choose_role(message):
-    user_id = message.chat.id
-    if message.text == "Преподаватель":
-        user_states[user_id] = 'enter_password'
-        bot.send_message(user_id, "Введите пароль преподавателя:")
-    elif message.text == "Ученик":
+    if username in AUTHORIZED_TEACHERS_USERNAMES:
+        full_name = AUTHORIZED_TEACHERS_USERNAMES[username]
+        user_states[user_id] = None
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
+        markup.add("Загрузить данные", "Посмотреть статистику")
+        bot.send_message(user_id, f"Добро пожаловать,{full_name}!\nВыберите действие:", reply_markup=markup)
+    else:
         user_states[user_id] = 'enter_fio'
         user_data[user_id] = {}
-        bot.send_message(user_id, "Введите ваши ФИО в формате Иванов Иван:")
-    else:
-        bot.send_message(user_id, "Пожалуйста, выберите одну из ролей.")
-
-
-# Проверка пароля преподавателя
-@bot.message_handler(func=lambda message: user_states.get(message.chat.id) == 'enter_password')
-def check_teacher_password(message):
-    user_id = message.chat.id
-    if message.text == TEACHER_PASSWORD:
-        authorized_teachers.add(user_id)
-        user_states[user_id] = None
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-        markup.add("Загрузить данные", "Посмотреть статистику")
-        bot.send_message(user_id, "Авторизация успешна! Выберите действие:", reply_markup=markup)
-    else:
-        bot.send_message(user_id, "Неверный пароль. Попробуйте снова.")
+        bot.send_message(user_id, "Добро пожаловать, ученик!\nВведите ваши ФИО в формате Иванов Иван:")
 
 
 # Проверка ФИО ученика
@@ -132,28 +112,59 @@ def student_action(message):
         bot.send_message(user_id, "Введите дату в формате ДД.ММ.ГГГГ:")
     elif message.text == "Завершить работу":
         user_states[user_id] = None
-        bot.send_message(user_id, "Спасибо за использование бота!")
+        finish_work(message)
     else:
         bot.send_message(user_id, "Пожалуйста, выберите один из вариантов.")
 
 
+@bot.message_handler(func=lambda message: message.text == "Вернуться к выбору команд")
+def back_to_commands(message):
+    user_id = message.chat.id
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
+    markup.add("Загрузить данные", "Посмотреть статистику", "Завершить работу")
+    bot.send_message(user_id, "Выберите команду:", reply_markup=markup)
+
+
 # Загрузка данных (для преподавателей)
-@bot.message_handler(func=lambda message: message.text == "Загрузить данные" and message.chat.id in authorized_teachers)
-def download_data(message):
+@bot.message_handler(func=lambda message: message.text == "Загрузить данные")
+def download(message):
     user_id = message.chat.id
     files = os.listdir(FILES_DIR)
-    if not files:
-        bot.send_message(user_id, "Нет данных для загрузки.")
-        return
 
-    for filename in files:
-        file_path = os.path.join(FILES_DIR, filename)
-        with open(file_path, "rb") as file:
-            bot.send_document(user_id, file)
+    if not files:
+        bot.send_message(user_id, "Нет доступных данных для загрузки.")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
+        markup.add("Вернуться к выбору команд", "Завершить работу")
+        bot.send_message(user_id, "Вы можете:", reply_markup=markup)
+        user_states[user_id] = None
+
+    else:
+        bot.send_message(user_id, "Отправка данных...")
+
+        for filename in files:
+            file_path = os.path.join(FILES_DIR, filename)
+            with open(file_path, "rb") as file:
+                bot.send_document(user_id, file)
+
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
+        markup.add("Вернуться к выбору команд", "Завершить работу")
+        bot.send_message(user_id, "Выберите команду:", reply_markup=markup)
+        user_states[user_id] = None
 
 
 # Просмотр статистики (для преподавателей)
-@bot.message_handler(func=lambda message: message.text == "Посмотреть статистику" and message.chat.id in authorized_teachers)
+@bot.message_handler(func=lambda message: message.text == "Посмотреть статистику")
 def view_statistics(message):
     user_id = message.chat.id
     bot.send_message(user_id, "Функция просмотра статистики пока не реализована.")
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
+    markup.add("Вернуться к выбору команд", "Завершить работу")
+    bot.send_message(user_id, "Вы можете:", reply_markup=markup)
+
+
+@bot.message_handler(func=lambda message: message.text == "Завершить работу")
+def finish_work(message):
+    user_id = message.chat.id
+    user_states[user_id] = None
+    bot.send_message(user_id, "Спасибо за работу! Вы можете вернуться в любой момент.")
+    start(message)

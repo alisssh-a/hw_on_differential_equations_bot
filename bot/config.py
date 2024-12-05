@@ -2,12 +2,8 @@ import os
 
 # Использование переменной окружения для загрузки токена
 TELEGRAM_BOT_TOKEN = os.getenv("hw_on_differential_equations_bot_token")
-
 if TELEGRAM_BOT_TOKEN is None:
     raise RuntimeError("Переменная окружения hw_on_differential_equations_bot_token не установлена!")
-
-
-TEACHER_PASSWORD = "securepassword"
 
 
 CONFIG_FILE_PATH = os.path.join(os.path.dirname(__file__), "config_path.txt")
@@ -17,7 +13,7 @@ CONFIG_FILE_PATH = os.path.join(os.path.dirname(__file__), "config_path.txt")
 def load_files_dir():
     try:
         if not os.path.exists(CONFIG_FILE_PATH):
-            raise FileNotFoundError(f"Файл {CONFIG_FILE_PATH} не найден. Убедитесь, что он существует.")
+            raise FileNotFoundError(f"Файл {CONFIG_FILE_PATH} не найден! Убедитесь, что он существует.")
 
         with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as file:
             for line in file:
