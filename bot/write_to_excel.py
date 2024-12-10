@@ -15,7 +15,7 @@ def extract_date_from_filename(file_name):
         return match.group(1)
     return None
 # Функция для записи даты в фыйл
-def write_to_excel(date, excel_folder_path, output_file="new_wb.xlsx")
+def write_to_excel(date, excel_folder_path, output_file="new_wb.xlsx"):
     excel_file_path = os.path.join(excel_folder_path, output_file)
 
     if os.path.exists(excel_file_path):
