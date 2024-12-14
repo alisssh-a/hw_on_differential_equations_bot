@@ -3,6 +3,9 @@ import re
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.dimensions import ColumnDimension
+import sys
+# путь к корневой директории проекта
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from bot.config import STUDENTS_FILES_DIR, TASKS_FILES_DIR, EXCEL_FILES_DIR
 from bot.create_excel import create
 
@@ -27,37 +30,6 @@ def extract_date_from_filename(file_name):
     if match:
         return match.group(1)
     return None
-
-# Функция для записи даты в файл
-def write_to_excel_data(date, excel_folder_path, output_file="new_wb.xlsx"):
-    excel_file_path = os.path.join(excel_folder_path, output_file)
-
-    if os.path.exists(excel_file_path):
-        wb = load_workbook(excel_file_path)
-        ws = wb.active
-    else:
-        wb = Workbook()
-        ws = wb.active
-
-    next_column = ws.max_column + 1
-    ws.cell(row=1, column=next_column, value=date)
-
-    auto_adjust_column_width(ws)
-
-    wb.save(excel_file_path)
-    #print(f"Дата {date} добавлена в файл: {excel_file_path}")
-
-# Основная функция для обработки файлов в указанной папке
-def process_files_data(folder_path_tasks, excel_folder_path):
-
-    for file_name in os.listdir(folder_path_tasks):
-        if file_name.startswith("tasks_"):
-            date = extract_date_from_filename(file_name)
-            if date:
-                print(f"Дата извлечена: {date}")
-                write_to_excel_data(date, excel_folder_path)
-            else:
-                print(f"В файле {file_name} не найдена дата.")
 
 # Функция для извлечения фио из имени файла
 def extract_surname_from_filename(file_name):
@@ -86,8 +58,45 @@ def write_to_excel_name(surname, excel_folder_path, output_file="new_wb.xlsx"):
     auto_adjust_column_width(ws)
 
     wb.save(excel_file_path)
-    print(f"Фамилия {surname} добавлена в файл: {excel_file_path}")
 
+# Функция для записи даты и задач в файл Excel
+def write_tasks_to_excel(date, tasks, excel_folder_path, output_file="new_wb.xlsx"):
+    excel_file_path = os.path.join(excel_folder_path, output_file)
+    if os.path.exists(excel_file_path):
+        wb = load_workbook(excel_file_path)
+        ws = wb.active
+    else:
+        wb = Workbook()
+        ws = wb.active
+        ws['A1'] = "Дата, на которую было дз" 
+        ws['A2'] = "Номера задач"
+
+    next_column = ws.max_column + 1 if ws.cell(row=1, column=ws.max_column).value else ws.max_column
+
+    ws.cell(row=1, column=next_column, value=date)
+
+    for i, task in enumerate(tasks, start=0):  
+        ws.cell(row=2, column=next_column + i, value=task)
+
+    auto_adjust_column_width(ws)
+
+    wb.save(excel_file_path)
+    print(f"Дата {date} и задачи добавлены в файл: {excel_file_path}")
+
+
+# Функция для обработки всех файлов с задачами
+def process_files_tasks(folder_path_tasks, excel_folder_path):
+    for file_name in sorted(os.listdir(folder_path_tasks)):
+        if file_name.startswith("tasks_") and file_name.endswith(".txt"):
+            date = extract_date_from_filename(file_name)
+            if date:
+                file_path = os.path.join(folder_path_tasks, file_name)
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    tasks = [line.strip() for line in f if line.strip()]
+                write_tasks_to_excel(date, tasks, excel_folder_path)
+            else:
+                print(f"В файле {file_name} не найдена дата.")
+                
 def process_files_surname(folder_path_students, excel_folder_path):
 
     for file_name in os.listdir(folder_path_students):
@@ -101,9 +110,11 @@ def process_files_surname(folder_path_students, excel_folder_path):
 def write():
     try:
         create()
-        process_files_data(TASKS_FILES_DIR, EXCEL_FILES_DIR)
         process_files_surname(STUDENTS_FILES_DIR, EXCEL_FILES_DIR)
+        process_files_tasks(TASKS_FILES_DIR, EXCEL_FILES_DIR)
         print("Статистика успешно сгенерирована.")
     except Exception as e:
         print(f"Ошибка при генерации статистики: {e}")
+
+write()
 
