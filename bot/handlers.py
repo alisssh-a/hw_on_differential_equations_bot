@@ -6,6 +6,8 @@ from bot.config import STUDENTS_FILES_DIR, TASKS_FILES_DIR
 from bot.teachers_usernames import AUTHORIZED_TEACHERS_USERNAMES
 from bot.validators import is_valid_fio, is_valid_group, is_valid_date, is_valid_task
 from bot.file_manager import read_existing_tasks, append_new_tasks
+from telebot import types
+from telebot.types import InputFile
 
 # Использование переменной окружения для загрузки токена
 TELEGRAM_BOT_TOKEN = os.getenv("hw_on_differential_equations_bot_token")
@@ -126,10 +128,34 @@ def download(message):
 @bot.message_handler(func=lambda message: message.text == "Посмотреть статистику")
 def view_statistics(message):
     user_id = message.chat.id
-    bot.send_message(user_id, "Функция просмотра статистики пока не реализована.")
+
+    try:
+        # Пути к необходимым файлам
+        base_dir = os.path.dirname(__file__)  # Корневая папка
+        excel_folder_path = os.path.join(base_dir, "path_to_excel_folder")  # Указать путь к папке с Excel-файлом
+        output_file = os.path.join(excel_folder_path, "new_wb.xlsx")
+
+        # Генерация статистики (вызываем ваши функции)
+        process_files_data(folder_path_tasks, excel_folder_path)  # Путь к задачам
+        process_files_surname(folder_path_students, excel_folder_path)  # Путь к студентам
+
+        # Отправка файла преподавателю
+        if os.path.exists(output_file):
+            bot.send_message(user_id, "Вот ваш файл со статистикой:")
+            with open(output_file, "rb") as file:
+                bot.send_document(user_id, InputFile(file, "new_wb.xlsx"))
+        else:
+            bot.send_message(user_id, "Файл со статистикой не найден. Возможно, возникла ошибка при его создании.")
+
+    except Exception as e:
+        # Обработка ошибок
+        bot.send_message(user_id, f"Произошла ошибка при создании статистики: {e}")
+
+    # Добавление кнопок для следующего действия
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True, row_width=1)
     markup.add("Вернуться к выбору команд", "Завершить работу")
     bot.send_message(user_id, "Выберите дальнейшее действие:", reply_markup=markup)
+
 
 
 # Ученик вводит ФИ

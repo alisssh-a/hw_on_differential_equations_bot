@@ -54,3 +54,30 @@ def load_files_dir():
 
 
 TASKS_FILES_DIR = load_files_dir()
+
+CONFIG_EXCEL_PATH = os.path.join(os.path.dirname(__file__), "config_excel_path.txt")
+
+
+# Функция для загрузки FILES_DIR из config_path.txt
+def load_files_dir():
+    try:
+        if not os.path.exists(CONFIG_EXCEL_PATH):
+            raise FileNotFoundError(f"Файл {CONFIG_EXCEL_PATH} не найден! Убедитесь, что он существует.")
+
+        with open(CONFIG_EXCEL_PATH, "r", encoding="utf-8") as file:
+            for line in file:
+                if line.startswith("FILES_DIR="):
+                    files_dir = line.strip().split("=", 1)[1]
+
+                    if not os.path.exists(files_dir):
+                        os.makedirs(files_dir)
+                        print(f"Папка {files_dir} была создана.")
+
+                    return files_dir
+
+            raise ValueError("Ключ EXCEL_FILES_DIR не найден в файле config_students_path.txt. Проверьте содержимое файла.")
+    except Exception as e:
+        raise RuntimeError(f"Ошибка при загрузке EXCEL_FILES_DIR из config_excel_path.txt.txt: {e}")
+
+
+EXCEL_FILES_DIR = load_files_dir()
