@@ -3,7 +3,8 @@ import re
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.dimensions import ColumnDimension
-from config import STUDENTS_FILES_DIR, TASKS_FILES_DIR, EXCEL_FILES_DIR
+from bot.config import STUDENTS_FILES_DIR, TASKS_FILES_DIR, EXCEL_FILES_DIR
+from bot.create_excel import create
 
 #Функция для форматирования столбцов по длине
 def auto_adjust_column_width(ws):
@@ -44,7 +45,7 @@ def write_to_excel_data(date, excel_folder_path, output_file="new_wb.xlsx"):
     auto_adjust_column_width(ws)
 
     wb.save(excel_file_path)
-    print(f"Дата {date} добавлена в файл: {excel_file_path}")
+    #print(f"Дата {date} добавлена в файл: {excel_file_path}")
 
 # Основная функция для обработки файлов в указанной папке
 def process_files_data(folder_path_tasks, excel_folder_path):
@@ -92,10 +93,17 @@ def process_files_surname(folder_path_students, excel_folder_path):
     for file_name in os.listdir(folder_path_students):
         surname = extract_surname_from_filename(file_name)
         if surname:
-            print(f"Фамилия извлечена: {surname}")
+            #print(f"Фамилия извлечена: {surname}")
             write_to_excel_name(surname, excel_folder_path)
         else:
             print(f"В файле {file_name} не найдена фамилия.")
             
-process_files_data(TASKS_FILES_DIR, EXCEL_FILES_DIR)
-process_files_surname(STUDENTS_FILES_DIR, EXCEL_FILES_DIR)
+def write():
+    try:
+        create()
+        process_files_data(TASKS_FILES_DIR, EXCEL_FILES_DIR)
+        process_files_surname(STUDENTS_FILES_DIR, EXCEL_FILES_DIR)
+        print("Статистика успешно сгенерирована.")
+    except Exception as e:
+        print(f"Ошибка при генерации статистики: {e}")
+
