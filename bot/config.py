@@ -31,7 +31,7 @@ STUDENTS_FILES_DIR = load_files_dir()
 CONFIG_TASKS_PATH = os.path.join(os.path.dirname(__file__), "config_tasks_path.txt")
 
 
-# Функция для загрузки FILES_DIR из config_path.txt
+# Функция для загрузки CONFIG_TASKS_PATH из config_path.txt
 def load_files_dir():
     try:
         if not os.path.exists(CONFIG_TASKS_PATH):
@@ -55,10 +55,11 @@ def load_files_dir():
 
 TASKS_FILES_DIR = load_files_dir()
 
+
 CONFIG_EXCEL_PATH = os.path.join(os.path.dirname(__file__), "config_excel_path.txt")
 
 
-# Функция для загрузки FILES_DIR из config_path.txt
+# Функция для загрузки CONFIG_EXCEL_PATH из config_path.txt
 def load_files_dir():
     try:
         if not os.path.exists(CONFIG_EXCEL_PATH):

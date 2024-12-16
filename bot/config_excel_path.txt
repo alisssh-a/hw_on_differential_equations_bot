@@ -1,1 +1,3 @@
 FILES_DIR=C:\Users\Инстаблогерша\OneDrive\Desktop\python\bot\hw_on_differential_equations_bot\bot\data
+
+#FILES_DIR=C:\Users\Алина\Desktop\pyton\tg bot\bot\data
