@@ -5,7 +5,7 @@ from bot.states import user_states, user_data
 from bot.config import STUDENTS_FILES_DIR, TASKS_FILES_DIR, EXCEL_FILES_DIR
 from bot.teachers_usernames import AUTHORIZED_TEACHERS_USERNAMES
 from bot.validators import is_valid_fio, is_valid_group, is_valid_date, is_valid_task
-from bot.file_manager import read_existing_tasks, append_new_tasks
+from bot.file_manager import read_existing_tasks, append_new_tasks, get_all_tasks_from_files
 from telebot import types
 from telebot.types import InputFile
 from bot.write_to_excel import write
@@ -215,23 +215,30 @@ def student_set_date(message):
     date_str = message.text.strip()
 
     if is_valid_date(date_str):
-        latest_file = max(
+        latest_files = sorted(
             [os.path.join(TASKS_FILES_DIR, f) for f in os.listdir(TASKS_FILES_DIR) if f.startswith("tasks_")],
             key=os.path.getctime,
-            default=None
         )
 
-        if latest_file:
-            with open(latest_file, "r", encoding="utf-8") as file:
-                tasks = [task.strip() for task in file.readlines() if task.strip()]
-            if tasks:
-                tasks_message = "Актуальные задачи:\n" + "\n".join(tasks)
-            else:
-                tasks_message = "Актуальных задач пока нет."
-        else:
-            tasks_message = "Актуальных задач пока нет."
+        if latest_files:
+            for task_file in latest_files:
+                task_date = os.path.splitext(os.path.basename(task_file))[0].replace("tasks_", "")
+                try:
+                    with open(task_file, "r", encoding="utf-8") as file:
+                        tasks = [task.strip() for task in file.readlines() if task.strip()]
 
-        bot.send_message(user_id, tasks_message)
+                    if tasks:
+                        tasks_message = f"Актуальные задачи на {task_date}:\n" + "\n".join(tasks)
+                    else:
+                        tasks_message = f"Актуальных задач на {task_date} пока нет."
+
+                    bot.send_message(user_id, tasks_message)
+                except Exception as e:
+                    bot.send_message(user_id, f"Ошибка при чтении задач на {task_date}: {e}")
+
+        else:
+            bot.send_message(user_id, "Актуальных задач пока нет.")
+
 
         user_data[user_id]['date'] = date_str
         user_states[user_id] = 'enter_tasks'
@@ -250,6 +257,13 @@ def student_set_tasks(message):
     invalid_tasks = [task for task in tasks if not is_valid_task(task)]
     if invalid_tasks:
         bot.send_message(user_id, f"Некорректные задачи: {', '.join(invalid_tasks)}. Введите только цифры.")
+        return
+
+    all_valid_tasks = get_all_tasks_from_files()
+
+    nonexistent_tasks = [task for task in tasks if task not in all_valid_tasks]
+    if nonexistent_tasks:
+        bot.send_message(user_id, f"Некоторые задачи: {', '.join(nonexistent_tasks)}.")
         return
 
     fio = user_data[user_id]['fio']
