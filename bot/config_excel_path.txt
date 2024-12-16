@@ -1,1 +1,1 @@
-FILES_DIR=C:\Users\gorsh\Desktop\py_bot\hw_on_differential_equations_bot\bot\data
+FILES_DIR=C:\Users\Инстаблогерша\OneDrive\Desktop\python\bot\hw_on_differential_equations_bot\bot\data
